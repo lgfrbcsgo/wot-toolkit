@@ -74,13 +74,11 @@ class TaskExecutor(object):
         self._gen = gen
         self._callbacks = Deferred()
         self._errbacks = Deferred()
-        self._started = False
         self._completed = False
+        self._send(None)
 
     def __del__(self):
-        if not self._started:
-            LOG_WARNING("Task hasn't been started.")
-        elif not self._completed:
+        if not self._completed:
             try:
                 raise CallbackCancelled()
             except CallbackCancelled:
@@ -89,11 +87,6 @@ class TaskExecutor(object):
     def __call__(self, callback, errback):
         self._callbacks.defer(callback)
         self._errbacks.defer(errback)
-
-    def run(self):
-        if not self._started:
-            self._started = True
-            self._send(None)
 
     def _send(self, value):
         self._step(self._gen.send, value)
@@ -124,9 +117,7 @@ def async_task(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         gen = func(*args, **kwargs)
-        executor = TaskExecutor(gen)
-        executor.run()
-        return executor
+        return TaskExecutor(gen)
 
     return wrapper
 
