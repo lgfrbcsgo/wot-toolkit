@@ -2,7 +2,7 @@ import sys
 from collections import deque
 from functools import wraps
 
-from mod_logging import LOG_WARNING, LOG_CURRENT_EXCEPTION
+from mod_logging import log_exceptions
 
 
 class Once(object):
@@ -41,11 +41,8 @@ class Deferred(object):
 
             callbacks, self._callbacks = self._callbacks, []
             for callback in callbacks:
-                try:
+                with log_exceptions():
                     callback(*args, **kwargs)
-                except Exception:
-                    LOG_WARNING("Unhandled exception.")
-                    LOG_CURRENT_EXCEPTION()
 
     def defer(self, callback):
         self._callback_count += 1
