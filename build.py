@@ -24,7 +24,9 @@ def wotmod():
     # clean dist directory
     subprocess.check_call(["rm", "-rf", "dist/wotmod"])
 
-    source_dst = "dist/wotmod/unpacked/res/scripts/client"
+    res_path = "dist/wotmod/unpacked/res"
+    internal_path = "scripts/client"
+    source_dst = path.join(res_path, internal_path)
 
     # make source directory
     subprocess.check_call(["mkdir", "-p", source_dst])
@@ -33,9 +35,7 @@ def wotmod():
     subprocess.check_call(["cp", "-r", "src/.", source_dst])
 
     # compile sources
-    for f in os.listdir(source_dst):
-        if f.endswith('.py') or path.isdir(path.join(source_dst, f)):
-            subprocess.check_call(["python2.7", "-m", "compileall", f], cwd=source_dst)
+    subprocess.check_call(["python2.7", "-m", "compileall", internal_path], cwd=res_path)
 
     unpacked_dst = "dist/wotmod/unpacked"
 
