@@ -213,7 +213,7 @@ class Server(object):
         self._listening_sock.close()
         self._listening_sock = None
 
-        for stream in self._connections.itervalues():
+        for stream in self._connections.values():
             stream.close()
 
         # wake up waiting futures to clean up protocol instances
