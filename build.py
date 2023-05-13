@@ -33,7 +33,9 @@ def wotmod():
     subprocess.check_call(["cp", "-r", "src/.", source_dst])
 
     # compile sources
-    subprocess.check_call(["python2.7", "-m", "compileall", source_dst])
+    for f in os.listdir(source_dst):
+        if f.endswith('.py') or path.isdir(path.join(source_dst, f)):
+            subprocess.check_call(["python2.7", "-m", "compileall", f], cwd=source_dst)
 
     unpacked_dst = "dist/wotmod/unpacked"
 
@@ -107,6 +109,10 @@ def github_actions_release():
 
 @task(wotmod)
 def install(dst):
+    for f in os.listdir(dst):
+        if f.startswith("{id}_".format(id=get_id())):
+            subprocess.check_call(["rm", f], cwd=dst)
+
     wotmod_dst = path.join("dist/wotmod", get_wotmod_name())
     subprocess.check_call(["cp", wotmod_dst, dst])
 
