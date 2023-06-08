@@ -1,17 +1,16 @@
 import struct
+from base64 import b64encode
 from collections import deque
+from hashlib import sha1
+from typing import Pattern
 
-from mod_async import Return, TimeoutExpired, async_task, timeout
+from mod_async import Return, async_task, timeout
 from mod_async_server import StreamClosed
 from mod_logging import LOG_NOTE
 from mod_websocket_server.frame import Frame, OpCode
-from mod_websocket_server.handshake import perform_handshake
+from mod_websocket_server.http import read_request
 
-
-def encode_utf8(data):
-    if isinstance(data, str):
-        data = data.decode("utf8")
-    return data.encode("utf8")
+HANDSHAKE_KEY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
 class MessageStream(object):
@@ -87,22 +86,26 @@ def websocket_protocol(allowed_origins=None):
     def decorator(protocol):
         @async_task
         def wrapper(server, stream):
-            try:
-                handshake_headers = yield timeout(
-                    5, perform_handshake(stream, allowed_origins)
-                )
-            except TimeoutExpired:
+            request = yield timeout(2, read_request(stream))
+
+            origin = request.headers.get("origin")
+            if allowed_origins and not origin_matches(origin, allowed_origins):
+                raise AssertionError("Origin {origin} is not allowed.".format(origin=origin))
+
+            if request.url == "/health":
+                yield stream.send(make_health_response(request))
                 return
 
+            yield stream.send(make_handshake_response(request))
+
             host, port = stream.peer_addr
-            origin = handshake_headers.get("origin")
             LOG_NOTE(
                 "Websocket: {origin} ([{host}]:{port}) connected.".format(
                     origin=origin, host=host, port=port
                 )
             )
 
-            message_stream = MessageStream(stream, handshake_headers)
+            message_stream = MessageStream(stream, request.headers)
             try:
                 yield protocol(server, message_stream)
             finally:
@@ -116,3 +119,51 @@ def websocket_protocol(allowed_origins=None):
         return wrapper
 
     return decorator
+
+
+def make_handshake_response(request):
+    if request.headers.get("sec-websocket-version") != "13":
+        raise AssertionError("Unsupported Websocket version")
+
+    key = request.headers.get("sec-websocket-key")
+    if key is None:
+        raise AssertionError("The 'sec-websocket-key' header is missing")
+
+    accept = b64encode(sha1(key + HANDSHAKE_KEY).digest())
+
+    return (
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: WebSocket\r\n"
+        "Connection: Upgrade\r\n"
+        "Sec-WebSocket-Accept: {accept}\r\n\r\n"
+    ).format(accept=accept)
+
+
+def make_health_response(request):
+    origin = request.headers.get("origin")
+    if origin is None:
+        return "HTTP/1.1 204 No Content\r\n\r\n"
+
+    return (
+        "HTTP/1.1 204 No Content\r\n"
+        "Access-Control-Allow-Origin: {origin}\r\n\r\n"
+    ).format(origin=origin)
+
+
+def origin_matches(origin, allowed_origins):
+    if origin is None:
+        return True
+
+    for allowed_origin in allowed_origins:
+        if allowed_origin == origin:
+            return True
+        elif isinstance(allowed_origin, Pattern) and allowed_origin.match(origin):
+            return True
+
+    return False
+
+
+def encode_utf8(data):
+    if isinstance(data, str):
+        data = data.decode("utf8")
+    return data.encode("utf8")

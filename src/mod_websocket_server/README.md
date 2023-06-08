@@ -4,6 +4,8 @@ Continuation and binary frames are not supported.
 
 **The server should only ever be run on localhost.**
 
+The server also responds to `GET /health` requests with status 204.
+
 ```python
 from debug_utils import LOG_NOTE
 from mod_async import async_task, delay
