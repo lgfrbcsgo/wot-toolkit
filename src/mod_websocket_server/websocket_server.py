@@ -92,8 +92,8 @@ def websocket_protocol(allowed_origins=None):
             if allowed_origins and not origin_matches(origin, allowed_origins):
                 raise AssertionError("Origin {origin} is not allowed.".format(origin=origin))
 
-            if request.url == "/health":
-                yield stream.send(make_health_response(request))
+            if request.url == "/ready":
+                yield stream.send(make_ready_response(request))
                 return
 
             yield stream.send(make_handshake_response(request))
@@ -139,14 +139,18 @@ def make_handshake_response(request):
     ).format(accept=accept)
 
 
-def make_health_response(request):
+def make_ready_response(request):
     origin = request.headers.get("origin")
     if origin is None:
-        return "HTTP/1.1 204 No Content\r\n\r\n"
+        return (
+            "HTTP/1.1 204 No Content\r\n"
+            "Vary: Origin\r\n\r\n"
+        )
 
     return (
         "HTTP/1.1 204 No Content\r\n"
-        "Access-Control-Allow-Origin: {origin}\r\n\r\n"
+        "Access-Control-Allow-Origin: {origin}\r\n"
+        "Vary: Origin\r\n\r\n"
     ).format(origin=origin)
 
 
